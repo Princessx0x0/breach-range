@@ -1,0 +1,128 @@
+{
+  "$comment": "Firestore contract for the Breach & Patch Range. Every agent reads and writes ONLY through this shape. The dashboard reads the same collections via real-time listeners. This file is the single source of truth for the data contract: agents/breach_range/shared/schema.py and web/lib/firestore.ts must both match it. Timestamps are Firestore serverTimestamp() on write, surfaced to clients as ISO 8601.",
+
+  "collections": {
+
+    "graph": {
+      "$comment": "One live document, id 'current'. Recon rewrites it each round; Attacker flags nodes reachable; Referee corrects those flags after verification; Defender's applied patch removes edges on the next Recon pass.",
+      "doc_id": "current",
+      "fields": {
+        "round": { "type": "int", "note": "current round number, starts at 1" },
+        "score": { "type": "int", "note": "verified-reachable misconfigs this round; the number the scoreboard plots" },
+        "updatedAt": { "type": "timestamp" },
+        "nodes": { "type": "array<Node>" },
+        "edges": { "type": "array<Edge>" }
+      },
+      "example": {
+        "round": 1,
+        "score": 2,
+        "updatedAt": "2026-10-25T14:03:11Z",
+        "nodes": [
+          { "id": "bucket:assets-public", "kind": "bucket", "name": "assets-public", "reachable": true, "fromMisconfig": "MC-01", "labels": { "iamPublic": true } },
+          { "id": "sa:ci-deployer", "kind": "serviceAccount", "name": "ci-deployer@proj.iam", "reachable": true, "fromMisconfig": null, "labels": { "roles": ["roles/iam.serviceAccountTokenCreator"] } },
+          { "id": "sa:org-admin", "kind": "serviceAccount", "name": "org-admin@proj.iam", "reachable": true, "fromMisconfig": null, "labels": { "roles": ["roles/owner"] } }
+        ],
+        "edges": [
+          { "id": "e1", "from": "bucket:assets-public", "to": "sa:ci-deployer", "relation": "leaksKey", "viaMisconfig": "MC-01" },
+          { "id": "e2", "from": "sa:ci-deployer", "to": "sa:org-admin", "relation": "tokenCreator", "viaMisconfig": "MC-02" }
+        ]
+      }
+    },
+
+    "events": {
+      "$comment": "Append-only. One doc per agent action. Nothing an agent does lives only in its head; if it happened, it is an event. This collection IS the audit trail after the demo. Never update or delete an event; corrections are new events.",
+      "doc_id": "auto",
+      "fields": {
+        "round": { "type": "int" },
+        "agent": { "type": "enum<Agent>" },
+        "action": { "type": "enum<Action>" },
+        "target": { "type": "string", "note": "node id, edge id, or path id the action concerns" },
+        "status": { "type": "enum<Status>" },
+        "payload": { "type": "object", "note": "action-specific; e.g. a Path for attacker.claim, a unified diff string for defender.proposed" },
+        "result": { "type": "string|null", "note": "short human-readable outcome, e.g. 'reachable via MC-01 -> MC-02' or 'rejected: deny policy blocks token creation'" },
+        "ts": { "type": "timestamp" }
+      },
+      "example": {
+        "round": 1,
+        "agent": "attacker",
+        "action": "attacker.claim",
+        "target": "path:p1",
+        "status": "claimed",
+        "payload": {
+          "path": {
+            "id": "p1",
+            "edges": ["e1", "e2"],
+            "startNode": "bucket:assets-public",
+            "targetNode": "sa:org-admin",
+            "misconfigs": ["MC-01", "MC-02"]
+          }
+        },
+        "result": "public bucket leaks CI key, key escalates to owner",
+        "ts": "2026-10-25T14:03:40Z"
+      }
+    },
+
+    "rounds": {
+      "$comment": "Optional but cheap, and it makes the scoreboard trivial: one doc per completed round. The descending score line reads straight off scoreAfter.",
+      "doc_id": "round number as string",
+      "fields": {
+        "round": { "type": "int" },
+        "scoreBefore": { "type": "int" },
+        "scoreAfter": { "type": "int" },
+        "patchApplied": { "type": "string|null", "note": "path id the Defender closed this round, or null" },
+        "startedAt": { "type": "timestamp" },
+        "endedAt": { "type": "timestamp" }
+      },
+      "example": { "round": 1, "scoreBefore": 2, "scoreAfter": 1, "patchApplied": "p1", "startedAt": "2026-10-25T14:03:00Z", "endedAt": "2026-10-25T14:05:12Z" }
+    }
+  },
+
+  "types": {
+    "Node": {
+      "id": "string, stable, formatted '<kind>:<shortname>' so edges reference it",
+      "kind": "enum<NodeKind>",
+      "name": "string, the real GCP resource name",
+      "reachable": "bool, set by Attacker, corrected by Referee",
+      "fromMisconfig": "string|null, the seeded misconfig id if this node exists because of one",
+      "labels": "object, free-form facts Recon read (roles, iamPublic, cidr, etc.)"
+    },
+    "Edge": {
+      "id": "string, unique within the graph",
+      "from": "node id",
+      "to": "node id",
+      "relation": "enum<Relation>, an allow-relationship only; deny is never modelled by design",
+      "viaMisconfig": "string|null"
+    },
+    "Path": {
+      "id": "string",
+      "edges": "array<edge id>, ordered from startNode to targetNode",
+      "startNode": "node id",
+      "targetNode": "node id, the escalation goal",
+      "misconfigs": "array<misconfig id> the path exploits"
+    }
+  },
+
+  "enums": {
+    "Agent": ["recon", "attacker", "referee", "defender"],
+    "Action": [
+      "recon.complete",
+      "attacker.claim",
+      "referee.verified",
+      "referee.rejected",
+      "defender.proposed",
+      "approval.requested",
+      "approval.granted",
+      "defender.applied"
+    ],
+    "Status": ["claimed", "verified", "rejected", "pending", "applied"],
+    "NodeKind": ["project", "serviceAccount", "key", "bucket", "firewall", "instance", "role"],
+    "Relation": ["hasKey", "leaksKey", "tokenCreator", "actAs", "hasRole", "allowsIngress", "readsBucket", "writesBucket"]
+  },
+
+  "invariants": [
+    "Only the Referee writes status 'verified' or 'rejected'. The Attacker only writes 'claimed'.",
+    "score on graph/current must equal the count of nodes reachable=true that the Referee has verified this round.",
+    "The Defender writes 'defender.proposed' and 'approval.requested', then waits. 'defender.applied' is written only after an 'approval.granted' event exists for the same target.",
+    "events are immutable once written."
+  ]
+}
