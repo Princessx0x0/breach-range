@@ -23,6 +23,7 @@ from breach_range.shared.schema import (
     Graph,
     Node,
     Path,
+    Relation,
     Status,
 )
 from breach_range.tools import firestore_io
@@ -32,14 +33,22 @@ HIGH_VALUE_ROLES = {"roles/owner", "roles/editor"}
 
 
 def _entry_nodes(graph: Graph) -> list[str]:
-    """An outsider's starting points: publicly exposed resources, plus graph sources
-    with no precondition (nothing points at them)."""
-    has_incoming = {e.to for e in graph.edges}
-    entries = []
-    for n in graph.nodes:
-        if n.labels.get("iamPublic") or n.id not in has_incoming:
-            entries.append(n.id)
-    return entries
+    """An outsider's starting points: resources reachable with no credentials -- a
+    public bucket, or an instance an ingress rule exposes.
+
+    Deliberately NOT 'any node with no incoming edge': a bare service account is a
+    source in the graph, but you need credentials to be it, so it is not an outsider
+    entry. This is what makes the graph go dark after a patch -- once the Defender
+    closes the public bucket, nothing is externally reachable and no path survives,
+    rather than the stranded ci-deployer being re-admitted as a phantom entry."""
+    ingress_targets = {
+        e.to for e in graph.edges if e.relation == Relation.ALLOWS_INGRESS
+    }
+    return [
+        n.id
+        for n in graph.nodes
+        if n.labels.get("iamPublic") or n.id in ingress_targets
+    ]
 
 
 def _target_nodes(graph: Graph) -> set[str]:
