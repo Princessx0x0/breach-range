@@ -1,0 +1,38 @@
+@import "tailwindcss";
+@import "../styles/tokens.css";
+@import "../styles/components.css";
+
+/* Self-hosted variable faces (imported in layout.tsx). */
+:root {
+  --font-newsreader: "Newsreader Variable";
+  --font-atkinson: "Atkinson Hyperlegible Next Variable";
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-text);
+  font-size: 16px;
+  line-height: 24px;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 500;
+  color: var(--ink);
+}
+
+p { margin: 0; }
+a { color: var(--primary); }
+a:hover { color: var(--primary-hover); }
