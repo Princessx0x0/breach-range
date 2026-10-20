@@ -78,22 +78,27 @@ def append_event(
     return doc.id
 
 
+def _ts_key(doc: dict[str, Any]) -> Any:
+    # serverTimestamp resolves to a comparable datetime on read; treat a not-yet-set
+    # value as the epoch so ordering is stable.
+    return doc.get("ts") or 0
+
+
 def find_event(action: schema.Action, target: str) -> Optional[dict[str, Any]]:
     """Return the most recent event matching an action + target, or None.
 
     The Defender uses this to prove an approval.granted exists before applying.
+
+    Queries on `target` alone (an automatic single-field index) and filters the action
+    in Python, so it needs no composite index. The per-target event count is tiny.
     """
-    q = (
-        client()
-        .collection(EVENTS_COLLECTION)
-        .where(filter=firestore.FieldFilter("action", "==", action.value))
-        .where(filter=firestore.FieldFilter("target", "==", target))
-        .order_by("ts", direction=firestore.Query.DESCENDING)
-        .limit(1)
+    q = client().collection(EVENTS_COLLECTION).where(
+        filter=firestore.FieldFilter("target", "==", target)
     )
-    for snap in q.stream():
-        return snap.to_dict()
-    return None
+    matches = [d for d in (snap.to_dict() for snap in q.stream()) if d.get("action") == action.value]
+    if not matches:
+        return None
+    return max(matches, key=_ts_key)
 
 
 def list_events(round: int, action: schema.Action) -> list[dict[str, Any]]:
@@ -101,15 +106,17 @@ def list_events(round: int, action: schema.Action) -> list[dict[str, Any]]:
 
     The Referee reads the Attacker's claims this way: it learns WHAT was claimed
     from the event log, then verifies each claim independently against ground truth.
+
+    Orders by `ts` (an automatic single-field index) and filters round + action in
+    Python, so it needs no composite index -- the demo runs without Firestore index
+    builds, and the event log is small.
     """
-    q = (
-        client()
-        .collection(EVENTS_COLLECTION)
-        .where(filter=firestore.FieldFilter("round", "==", round))
-        .where(filter=firestore.FieldFilter("action", "==", action.value))
-        .order_by("ts")
-    )
-    return [snap.to_dict() for snap in q.stream()]
+    q = client().collection(EVENTS_COLLECTION).order_by("ts")
+    return [
+        d
+        for d in (snap.to_dict() for snap in q.stream())
+        if d.get("round") == round and d.get("action") == action.value
+    ]
 
 
 # --- rounds --------------------------------------------------------------
