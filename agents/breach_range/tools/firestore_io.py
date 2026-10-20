@@ -96,6 +96,22 @@ def find_event(action: schema.Action, target: str) -> Optional[dict[str, Any]]:
     return None
 
 
+def list_events(round: int, action: schema.Action) -> list[dict[str, Any]]:
+    """All events for one round with a given action, oldest first.
+
+    The Referee reads the Attacker's claims this way: it learns WHAT was claimed
+    from the event log, then verifies each claim independently against ground truth.
+    """
+    q = (
+        client()
+        .collection(EVENTS_COLLECTION)
+        .where(filter=firestore.FieldFilter("round", "==", round))
+        .where(filter=firestore.FieldFilter("action", "==", action.value))
+        .order_by("ts")
+    )
+    return [snap.to_dict() for snap in q.stream()]
+
+
 # --- rounds --------------------------------------------------------------
 
 def write_round(

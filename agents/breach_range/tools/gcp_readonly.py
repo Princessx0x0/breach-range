@@ -93,6 +93,13 @@ def list_bucket_objects(bucket: str) -> list[str]:
     return [o["name"] for o in resp.get("items", [])]
 
 
+def read_object(bucket: str, obj: str) -> str:
+    """Download an object's bytes as text. Read-only; used to re-read the leaked
+    key file the MC-01 bucket exposes. The object never holds real key material."""
+    svc = _svc("storage", "v1")
+    return svc.objects().get_media(bucket=bucket, object=obj).execute().decode("utf-8")
+
+
 # --- Compute (for MC-03 / MC-04, used from step 6) -----------------------
 
 def list_firewalls() -> list[dict[str, Any]]:
