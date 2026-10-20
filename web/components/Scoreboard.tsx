@@ -33,7 +33,7 @@ export function Scoreboard({ graph, rounds }: { graph: Graph | null; rounds: Rou
   return (
     <section className="panel score" aria-label="Scoreboard">
       <div className="panel__head">
-        <h2 className="panel__title">Ways in</h2>
+        <h2 className="panel__title">Threat level</h2>
       </div>
       <div className="score__now">
         <span className={`score__value${current === 0 ? " score__value--zero" : ""}`}>
@@ -41,9 +41,25 @@ export function Scoreboard({ graph, rounds }: { graph: Graph | null; rounds: Rou
         </span>
         <span className="score__caption">
           {current === 0
-            ? "the attacker can reach nothing"
+            ? "SECURED — the attacker can reach nothing"
             : `path${current === 1 ? "" : "s"} an attacker can still use`}
         </span>
+      </div>
+      <div
+        className="score__meter"
+        role="meter"
+        aria-valuenow={current}
+        aria-valuemin={0}
+        aria-valuemax={maxScore}
+      >
+        <div
+          className="score__meter-fill"
+          style={{
+            width: current === 0 ? "100%" : `${(current / maxScore) * 100}%`,
+            background: current === 0 ? "var(--patched)" : "var(--reachable)",
+            boxShadow: current === 0 ? "0 0 12px var(--patched-glow)" : "0 0 12px var(--reachable-glow)",
+          }}
+        />
       </div>
       {points.length > 0 && (
         <svg className="score__chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Score per round">

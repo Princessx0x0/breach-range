@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { AttackGraph } from "@/components/AttackGraph";
+import { AttackGraph, type Phase } from "@/components/AttackGraph";
 import { EventFeed } from "@/components/EventFeed";
 import { Explainer } from "@/components/Explainer";
 import { PatchDiff } from "@/components/PatchDiff";
@@ -16,6 +16,19 @@ import {
   type Graph,
   type Round,
 } from "@/lib/firestore";
+
+/** The mood of the room, which drives the accent colour and the graph animation. */
+function derivePhase(info: RunnerState | null, graph: Graph | null): Phase {
+  if (!graph) return "idle";
+  if (info?.status === "game_over") return "secured";
+  const anyReachable = graph.nodes.some((n) => n.reachable);
+  if (anyReachable) {
+    // The Referee has just verified the attack (next step is the Defender): scrutiny.
+    if (info?.next === "defender") return "verifying";
+    return "threat";
+  }
+  return "mapping"; // graph is drawn but nothing is reachable yet
+}
 
 /**
  * The control room, guided-story style. The status banner narrates the game and carries
@@ -102,9 +115,12 @@ export default function ControlRoom() {
     }
   }, [info]);
 
+  const phase = derivePhase(info, graph);
+
   return (
-    <main className="room">
+    <main className="room" data-phase={phase}>
       <header className="room__head">
+        <span className="room__brandmark" aria-hidden />
         <div>
           <h1 className="room__title">Breach &amp; Patch Range</h1>
           <p className="type-caption">
@@ -121,6 +137,7 @@ export default function ControlRoom() {
 
       <StatusBanner
         info={info}
+        phase={phase}
         busy={busy}
         onStep={() => post("step")}
         onRound={() => post("round")}
@@ -129,7 +146,7 @@ export default function ControlRoom() {
       />
 
       <div className="room__grid">
-        <AttackGraph graph={graph} />
+        <AttackGraph graph={graph} phase={phase} />
         <div className="room__rail">
           <Scoreboard graph={graph} rounds={rounds} />
           <Explainer />

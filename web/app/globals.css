@@ -2,7 +2,6 @@
 @import "../styles/tokens.css";
 @import "../styles/components.css";
 
-/* Self-hosted variable faces (imported in layout.tsx). */
 :root {
   --font-newsreader: "Newsreader Variable";
   --font-atkinson: "Atkinson Hyperlegible Next Variable";
@@ -15,24 +14,37 @@ body {
 
 body {
   margin: 0;
-  background: var(--paper);
   color: var(--ink);
   font-family: var(--font-text);
-  font-size: 16px;
-  line-height: 24px;
+  font-size: 15px;
+  line-height: 23px;
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
+  /* deep space with a faint grid */
+  background-color: var(--paper);
+  background-image:
+    radial-gradient(1200px 700px at 70% -10%, rgba(58, 225, 255, 0.06), transparent 60%),
+    radial-gradient(900px 600px at 10% 110%, rgba(255, 59, 92, 0.05), transparent 60%),
+    linear-gradient(rgba(120, 160, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(120, 160, 255, 0.045) 1px, transparent 1px);
+  background-size: auto, auto, 40px 40px, 40px 40px;
+  background-attachment: fixed;
 }
 
-h1,
-h2,
-h3 {
-  margin: 0;
-  font-family: var(--font-display);
-  font-weight: 500;
-  color: var(--ink);
-}
-
+h1, h2, h3 { margin: 0; font-family: var(--font-display); font-weight: 800; color: var(--ink); }
 p { margin: 0; }
 a { color: var(--primary); }
 a:hover { color: var(--primary-hover); }
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 1px var(--accent), 0 0 18px -2px var(--accent-glow); }
+  50%      { box-shadow: 0 0 0 1px var(--accent), 0 0 34px 2px var(--accent-glow); }
+}
+@keyframes sheen {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}

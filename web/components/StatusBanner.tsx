@@ -17,8 +17,17 @@ export interface RunnerState {
  * is, plus the single button that advances the game. This is the thing you read and click;
  * everything else on the page is detail.
  */
+const PHASE_LABEL: Record<string, string> = {
+  idle: "standby",
+  mapping: "reconnaissance",
+  threat: "under attack",
+  verifying: "verifying",
+  secured: "secured",
+};
+
 export function StatusBanner({
   info,
+  phase,
   busy,
   onStep,
   onRound,
@@ -26,6 +35,7 @@ export function StatusBanner({
   onApprove,
 }: {
   info: RunnerState | null;
+  phase: string;
   busy: boolean;
   onStep: () => void;
   onRound: () => void;
@@ -50,6 +60,7 @@ export function StatusBanner({
   return (
     <section className={`banner banner--${info.status}`} aria-label="What is happening">
       <div className="banner__top">
+        <span className="banner__phase">{PHASE_LABEL[phase] ?? phase}</span>
         <span className="banner__round">
           Round {info.round} · step {Math.min(info.stepIndex, info.stepCount)} of {info.stepCount}
         </span>

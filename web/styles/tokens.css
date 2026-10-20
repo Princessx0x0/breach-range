@@ -1,72 +1,50 @@
-/* Breach & Patch Range tokens. Ije's design language (tokens.json), with three
-   state colours layered on top. Colour carries one thing only: whether a path is
-   reachable, patched, or neutral. No decorative colour. */
-
-:root,
-[data-theme="light"] {
-  --paper: #f3efe7;
-  --surface: #ffffff;
-  --inset: #e9e3d8;
-  --track: #d9d1c3;
-  --ink: #1e2629;
-  --ink-muted: #4f5b5e;
-  --primary: #2e5e58;
-  --primary-hover: #244b46;
-  --on-primary: #ffffff;
-  --primary-soft: #dce7e3;
-  --on-primary-soft: #1f4440;
-  --laterite: #a6532f;
-  --local-soft: #f4e3d9;
-  --on-local-soft: #7a3a1e;
-  --danger: #9e2f2f;
-  --danger-soft: #f6dedb;
-  --shadow-card: 0 1px 2px rgba(30, 38, 41, 0.04), 0 4px 12px rgba(30, 38, 41, 0.04);
-  --shadow-raised: 0 1px 2px rgba(30, 38, 41, 0.10);
-
-  /* State colours (the only semantic colour in the product). */
-  --reachable: #9e2f2f;          /* a path an outsider can walk right now: lit */
-  --reachable-soft: #f6dedb;
-  --reachable-glow: rgba(158, 47, 47, 0.28);
-  --patched: #2e5e58;            /* a path the Defender closed: safe */
-  --patched-soft: #dce7e3;
-  --neutral: #8a837a;            /* present but not reachable: dark */
-  --neutral-soft: #e9e3d8;
-
-  color-scheme: light;
-}
-
-[data-theme="dark"] {
-  --paper: #161b1c;
-  --surface: #1f2627;
-  --inset: #283031;
-  --track: #3a4344;
-  --ink: #eeeae2;
-  --ink-muted: #aeb6b4;
-  --primary: #8cc2b8;
-  --primary-hover: #a6d3ca;
-  --on-primary: #10211e;
-  --primary-soft: #22403b;
-  --on-primary-soft: #cfe6e0;
-  --laterite: #e09a76;
-  --local-soft: #3d2a20;
-  --on-local-soft: #f0c6ae;
-  --danger: #f1a7a0;
-  --danger-soft: #3f2523;
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.32);
-  --shadow-raised: 0 1px 2px rgba(0, 0, 0, 0.40);
-
-  --reachable: #f1a7a0;
-  --reachable-soft: #3f2523;
-  --reachable-glow: rgba(241, 167, 160, 0.30);
-  --patched: #8cc2b8;
-  --patched-soft: #22403b;
-  --neutral: #6b736f;
-  --neutral-soft: #283031;
-
-  color-scheme: dark;
-}
+/* Breach & Patch Range — dark ops theme. Colour carries state and phase only:
+   map (cyan), threat (red), verify (amber), secured (green). Everything glows on black. */
 
 :root {
+  /* grounds */
+  --paper: #05070e;
+  --surface: #0b1020;
+  --surface-2: #11182c;
+  --inset: #0c1120;
+  --track: #1b2338;
+  --ink: #e9eefc;
+  --ink-muted: #8794b2;
+
+  /* action colour */
+  --primary: #3ae1ff;
+  --primary-hover: #74ecff;
+  --on-primary: #03121a;
+  --primary-soft: #0b2a37;
+  --on-primary-soft: #a9ecff;
+
+  /* state (the only semantic colour) */
+  --reachable: #ff3b5c;
+  --reachable-soft: #260b13;
+  --reachable-glow: rgba(255, 59, 92, 0.55);
+  --patched: #22e39a;
+  --patched-soft: #06241a;
+  --patched-glow: rgba(34, 227, 154, 0.5);
+  --neutral: #495573;
+  --neutral-soft: #101728;
+
+  /* phase accents */
+  --map: #3ae1ff;
+  --threat: #ff3b5c;
+  --verify: #ffb020;
+  --safe: #22e39a;
+  --accent: var(--map);
+  --accent-glow: rgba(58, 225, 255, 0.5);
+
+  --danger: #ff3b5c;
+  --danger-soft: #260b13;
+
+  --shadow-card: 0 0 0 1px rgba(120, 160, 255, 0.07), 0 10px 44px rgba(0, 0, 0, 0.6);
+  --shadow-raised: 0 0 0 1px rgba(120, 160, 255, 0.10);
+
+  color-scheme: dark;
+
+  /* scale */
   --space-8: 8px;
   --space-16: 16px;
   --space-24: 24px;
@@ -75,44 +53,26 @@
   --space-48: 48px;
   --space-64: 64px;
   --radius-8: 8px;
-  --radius-16: 16px;
-  --radius-24: 24px;
+  --radius-16: 14px;
+  --radius-24: 18px;
   --radius-pill: 999px;
-  --font-display: var(--font-newsreader), Georgia, "Times New Roman", serif;
-  --font-text: var(--font-atkinson), system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --font-display: var(--font-atkinson), system-ui, sans-serif;
+  --font-text: var(--font-atkinson), system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
 }
 
-.type-display {
-  font-family: var(--font-display);
-  font-size: 48px;
-  line-height: 52px;
-  font-weight: 500;
-  letter-spacing: -0.01em;
-  font-variation-settings: "opsz" 48;
-}
-.type-heading {
-  font-family: var(--font-display);
-  font-size: 32px;
-  line-height: 40px;
-  font-weight: 500;
-  font-variation-settings: "opsz" 32;
-}
-.type-title {
-  font-family: var(--font-display);
-  font-size: 22px;
-  line-height: 28px;
-  font-weight: 600;
-  font-variation-settings: "opsz" 22;
-}
-.type-body { font-family: var(--font-text); font-size: 16px; line-height: 24px; font-weight: 400; }
-.type-label { font-family: var(--font-text); font-size: 14px; line-height: 20px; font-weight: 700; }
-.type-caption { font-family: var(--font-text); font-size: 14px; line-height: 20px; font-weight: 400; color: var(--ink-muted); }
-.type-overline {
-  font-family: var(--font-text);
-  font-size: 14px;
-  line-height: 20px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink-muted);
-}
+/* Phase sets the accent used for glows, meters and highlights across the whole page. */
+[data-phase="mapping"]  { --accent: var(--map);    --accent-glow: rgba(58, 225, 255, 0.5); }
+[data-phase="threat"]   { --accent: var(--threat); --accent-glow: rgba(255, 59, 92, 0.55); }
+[data-phase="verifying"]{ --accent: var(--verify); --accent-glow: rgba(255, 176, 32, 0.5); }
+[data-phase="secured"]  { --accent: var(--safe);   --accent-glow: rgba(34, 227, 154, 0.5); }
+[data-phase="idle"]     { --accent: var(--neutral); --accent-glow: rgba(73, 85, 115, 0.4); }
+
+.type-display { font-family: var(--font-display); font-size: 44px; line-height: 48px; font-weight: 800; letter-spacing: -0.01em; }
+.type-heading { font-family: var(--font-display); font-size: 28px; line-height: 34px; font-weight: 800; }
+.type-title   { font-family: var(--font-display); font-size: 18px; line-height: 24px; font-weight: 800; letter-spacing: 0.02em; }
+.type-body    { font-family: var(--font-text); font-size: 15px; line-height: 23px; font-weight: 400; }
+.type-label   { font-family: var(--font-mono); font-size: 12px; line-height: 18px; font-weight: 600; letter-spacing: 0.04em; }
+.type-caption { font-family: var(--font-mono); font-size: 12px; line-height: 18px; font-weight: 400; color: var(--ink-muted); letter-spacing: 0.02em; }
+.type-overline{ font-family: var(--font-mono); font-size: 11px; line-height: 16px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-muted); }
