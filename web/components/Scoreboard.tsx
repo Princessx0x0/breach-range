@@ -33,14 +33,16 @@ export function Scoreboard({ graph, rounds }: { graph: Graph | null; rounds: Rou
   return (
     <section className="panel score" aria-label="Scoreboard">
       <div className="panel__head">
-        <h2 className="panel__title">Reachable misconfigs</h2>
+        <h2 className="panel__title">Ways in</h2>
       </div>
       <div className="score__now">
         <span className={`score__value${current === 0 ? " score__value--zero" : ""}`}>
           {current}
         </span>
         <span className="score__caption">
-          {current === 0 ? "nothing reachable" : `round ${graph?.round ?? points.at(-1)?.round ?? 1}`}
+          {current === 0
+            ? "the attacker can reach nothing"
+            : `path${current === 1 ? "" : "s"} an attacker can still use`}
         </span>
       </div>
       {points.length > 0 && (

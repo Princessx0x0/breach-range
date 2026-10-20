@@ -1,0 +1,14 @@
+rules_version = '2';
+
+// The dashboard reads the game state with no sign-in, so graph/events/rounds are
+// world-readable in this throwaway sandbox (game data, nothing sensitive). Client writes
+// are denied: the agents (server SDK) and the approval route (Admin SDK) bypass these
+// rules, so only they can write. Everything else is closed.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /graph/{doc}  { allow read: if true; allow write: if false; }
+    match /events/{doc} { allow read: if true; allow write: if false; }
+    match /rounds/{doc} { allow read: if true; allow write: if false; }
+    match /{document=**} { allow read, write: if false; }
+  }
+}

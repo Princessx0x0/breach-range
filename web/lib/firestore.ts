@@ -110,16 +110,20 @@ export interface Round {
 
 // --- firebase client ------------------------------------------------------
 
+const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
 const config = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  // Derived default is fine: the dashboard reads Firestore and uses no Firebase Auth,
+  // so authDomain is never actually contacted. A registered web app is not required.
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ?? (projectId ? `${projectId}.firebaseapp.com` : undefined),
+  projectId,
   storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-const REQUIRED = ["apiKey", "authDomain", "projectId", "appId"] as const;
+// Firestore-only needs just the API key and project; appId is for Analytics, not reads.
+const REQUIRED = ["apiKey", "projectId"] as const;
 
 export class FirebaseConfigError extends Error {}
 

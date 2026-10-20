@@ -30,12 +30,38 @@ function nodeState(reachable: boolean, fromMisconfig: string | null): string {
   return "neutral";
 }
 
+// Plain-language phrase for each allow-relationship, so an edge reads like a sentence.
+const RELATION_PHRASE: Record<string, string> = {
+  leaksKey: "leaks a key",
+  tokenCreator: "can become",
+  hasKey: "has a key",
+  actAs: "can act as",
+  hasRole: "has role",
+  allowsIngress: "open to internet",
+  readsBucket: "can read",
+  writesBucket: "can write",
+};
+
+function nodeLabel(n: Graph["nodes"][number]): string {
+  const roles = (n.labels?.roles as string[] | undefined) ?? [];
+  const owner = roles.includes("roles/owner") || roles.includes("roles/editor");
+  if (n.kind === "bucket") {
+    const short = n.name.replace(/^.*?-assets/, "assets");
+    return `${short}\n${n.labels?.iamPublic ? "PUBLIC BUCKET" : "bucket"}`;
+  }
+  if (n.kind === "serviceAccount") {
+    const short = n.name.split("@")[0];
+    return `${short}\n${owner ? "OWNER" : "service account"}`;
+  }
+  return `${n.name}\n${n.kind}`;
+}
+
 function toElements(graph: Graph): ElementDefinition[] {
   const reachableIds = new Set(graph.nodes.filter((n) => n.reachable).map((n) => n.id));
   const nodes = graph.nodes.map((n) => ({
     data: {
       id: n.id,
-      label: `${n.name}`,
+      label: nodeLabel(n),
       kind: n.kind,
       state: nodeState(n.reachable, n.fromMisconfig),
     },
@@ -44,7 +70,13 @@ function toElements(graph: Graph): ElementDefinition[] {
     const lit = reachableIds.has(e.from) && reachableIds.has(e.to);
     const state = lit ? "reachable" : e.viaMisconfig ? "patched" : "neutral";
     return {
-      data: { id: e.id, source: e.from, target: e.to, label: e.relation, state },
+      data: {
+        id: e.id,
+        source: e.from,
+        target: e.to,
+        label: RELATION_PHRASE[e.relation] ?? e.relation,
+        state,
+      },
     };
   });
   return [...nodes, ...edges];
