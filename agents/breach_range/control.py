@@ -75,12 +75,18 @@ def step() -> dict:
             if paths else "The Attacker found no way in. Let the Referee confirm."))
     elif stage == "referee":
         score = run_referee(rnd)
+        rejected = len(firestore_io.list_events(rnd, Action.REFEREE_REJECTED))
+        rej_note = (
+            f" It rejected {rejected} false path(s) the Attacker claimed; ground truth blocks "
+            "them, so they do not score."
+            if rejected else ""
+        )
         if score == 0:
             _cursor.update(stage="game_over",
-                           message="The Referee could reach nothing. The project is secure — you win.")
+                           message="The Referee could reach nothing. The project is secure. You win." + rej_note)
         else:
             _cursor.update(stage="propose",
-                           message=f"The Referee verified the attack: {score} way(s) in still reachable.")
+                           message=f"The Referee verified the attack: {score} way(s) in still reachable." + rej_note)
     elif stage == "propose":
         patch = propose(rnd)
         if patch is None:

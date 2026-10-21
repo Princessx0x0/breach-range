@@ -37,8 +37,9 @@ function cssVar(name: string, fallback: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
 }
 
-function nodeState(reachable: boolean, fromMisconfig: string | null): string {
+function nodeState(reachable: boolean, fromMisconfig: string | null, rejected: boolean): string {
   if (reachable) return "reachable";
+  if (rejected) return "rejected";
   if (fromMisconfig) return "patched";
   return "neutral";
 }
@@ -56,25 +57,50 @@ function nodeLabel(n: Graph["nodes"][number]): string {
   return `${n.name}\n${n.kind}`;
 }
 
-function toElements(graph: Graph): ElementDefinition[] {
+function toElements(
+  graph: Graph,
+  rejectedNodeIds: Set<string>,
+  rejectedEdgeIds: Set<string>,
+): ElementDefinition[] {
   const reachable = new Set(graph.nodes.filter((n) => n.reachable).map((n) => n.id));
   const nodes = graph.nodes.map((n) => ({
-    data: { id: n.id, label: nodeLabel(n), state: nodeState(n.reachable, n.fromMisconfig) },
+    data: {
+      id: n.id,
+      label: nodeLabel(n),
+      state: nodeState(n.reachable, n.fromMisconfig, rejectedNodeIds.has(n.id)),
+    },
   }));
   const edges = graph.edges.map((e) => {
     const lit = reachable.has(e.from) && reachable.has(e.to);
+    const state = lit
+      ? "reachable"
+      : rejectedEdgeIds.has(e.id)
+        ? "rejected"
+        : e.viaMisconfig
+          ? "patched"
+          : "neutral";
     return {
       data: {
         id: e.id, source: e.from, target: e.to,
         label: RELATION_PHRASE[e.relation] ?? e.relation,
-        state: lit ? "reachable" : e.viaMisconfig ? "patched" : "neutral",
+        state,
       },
     };
   });
   return [...nodes, ...edges];
 }
 
-export function AttackGraph({ graph, phase }: { graph: Graph | null; phase: Phase }) {
+export function AttackGraph({
+  graph,
+  phase,
+  rejectedNodeIds,
+  rejectedEdgeIds,
+}: {
+  graph: Graph | null;
+  phase: Phase;
+  rejectedNodeIds?: Set<string>;
+  rejectedEdgeIds?: Set<string>;
+}) {
   const boxRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<Core | null>(null);
 
@@ -84,17 +110,23 @@ export function AttackGraph({ graph, phase }: { graph: Graph | null; phase: Phas
     const reachable = cssVar("--reachable", "#ff3b5c");
     const patched = cssVar("--patched", "#22e39a");
     const neutral = cssVar("--neutral", "#495573");
+    const rejected = cssVar("--rejected", "#9c6b78");
     const verify = cssVar("--verify", "#ffb020");
     const map = cssVar("--map", "#3ae1ff");
     const ink = cssVar("--ink", "#e9eefc");
     const inkMuted = cssVar("--ink-muted", "#8794b2");
     const surface = cssVar("--surface", "#0b1020");
-    const color: Record<string, string> = { reachable, patched, neutral };
+    const color: Record<string, string> = { reachable, patched, neutral, rejected };
     const face = '"JetBrains Mono", ui-monospace, monospace';
+    // Resting opacity per state: neutral and rejected sit back, live/closed read full.
+    const restNodeOp = (s: string) => (s === "neutral" ? 0.5 : s === "rejected" ? 0.6 : 1);
+    const restEdgeOp = (s: string) => (s === "neutral" ? 0.4 : s === "rejected" ? 0.5 : 1);
+    const rejNodes = rejectedNodeIds ?? new Set<string>();
+    const rejEdges = rejectedEdgeIds ?? new Set<string>();
 
     const cy = cytoscape({
       container: boxRef.current,
-      elements: toElements(graph),
+      elements: toElements(graph, rejNodes, rejEdges),
       style: [
         {
           selector: "node",
@@ -114,16 +146,29 @@ export function AttackGraph({ graph, phase }: { graph: Graph | null; phase: Phas
             height: 34,
             "border-width": 2,
             "border-color": "#060a14",
-            opacity: (n: NodeSingular) => (n.data("state") === "neutral" ? 0.5 : 1),
+            opacity: (n: NodeSingular) => restNodeOp(n.data("state")),
           },
         },
         {
+          // Reachable nodes run larger with a stronger glow -- the compromised resources
+          // should dominate the board.
           selector: 'node[state = "reachable"]',
-          style: { "underlay-color": reachable, "underlay-opacity": 0.3, "underlay-padding": 8 },
+          style: { "underlay-color": reachable, "underlay-opacity": 0.35, "underlay-padding": 10, width: 42, height: 42 },
         },
         {
           selector: 'node[state = "patched"]',
           style: { "underlay-color": patched, "underlay-opacity": 0.22, "underlay-padding": 6 },
+        },
+        {
+          // Rejected: a dashed, muted ring -- claimed by the Attacker, thrown out by the Referee.
+          selector: 'node[state = "rejected"]',
+          style: {
+            "border-style": "dashed",
+            "border-color": rejected,
+            "underlay-color": rejected,
+            "underlay-opacity": 0.15,
+            "underlay-padding": 6,
+          },
         },
         {
           selector: "edge",
@@ -141,12 +186,19 @@ export function AttackGraph({ graph, phase }: { graph: Graph | null; phase: Phas
             "text-background-color": surface,
             "text-background-opacity": 0.9,
             "text-background-padding": "3px",
-            opacity: (e: EdgeSingular) => (e.data("state") === "neutral" ? 0.4 : 1),
+            opacity: (e: EdgeSingular) => restEdgeOp(e.data("state")),
           },
         },
         {
+          // Live attack edge: a short bright dash on a long gap reads as a packet
+          // travelling the edge when the dash offset animates (see the tick loop).
           selector: "edge.hot",
-          style: { "line-style": "dashed", "line-dash-pattern": [9, 7], "line-color": reachable, "target-arrow-color": reachable, width: 3 },
+          style: { "line-style": "dashed", "line-dash-pattern": [5, 15], "line-color": reachable, "target-arrow-color": reachable, width: 3.5 },
+        },
+        {
+          // Rejected edge: dashed and muted, visibly not part of the live red attack path.
+          selector: 'edge[state = "rejected"]',
+          style: { "line-style": "dashed", "line-color": rejected, "target-arrow-color": rejected },
         },
       ],
       layout: { name: "breadthfirst", directed: true, spacingFactor: 1.5, padding: 28, animate: true, animationDuration: 500 },
@@ -168,16 +220,37 @@ export function AttackGraph({ graph, phase }: { graph: Graph | null; phase: Phas
     cy.edges().style("opacity", 0);
     cy.nodes().forEach((n, i) => {
       timers.push(setTimeout(() => {
-        n.animate({ style: { opacity: n.data("state") === "neutral" ? 0.5 : 1 } }, { duration: 260 });
+        n.animate({ style: { opacity: restNodeOp(n.data("state")) } }, { duration: 260 });
       }, stagger ? i * 180 : i * 30));
     });
     timers.push(setTimeout(() => {
       cy.edges().forEach((e, i) => {
         timers.push(setTimeout(() => {
-          e.animate({ style: { opacity: e.data("state") === "neutral" ? 0.4 : 1 } }, { duration: 240 });
+          e.animate({ style: { opacity: restEdgeOp(e.data("state")) } }, { duration: 240 });
         }, stagger ? i * 180 : i * 40));
       });
     }, stagger ? cy.nodes().length * 180 : 120));
+
+    // The decoy beat: a rejected path first flashes like a live threat (red), then is
+    // struck out -- it fades to a muted, dashed state as the Referee throws out a claim
+    // that failed against ground truth. Mirrors a real state change, never decoration.
+    const rej = cy.elements('[state = "rejected"]');
+    if (rej.length > 0) {
+      rej.edges().style({ "line-color": reachable, "target-arrow-color": reachable });
+      rej.nodes().style({ "underlay-color": reachable, "underlay-opacity": 0.45, "underlay-padding": 12 });
+      timers.push(
+        setTimeout(() => {
+          rej.edges().animate(
+            { style: { "line-color": rejected, "target-arrow-color": rejected, opacity: restEdgeOp("rejected") } },
+            { duration: 650 },
+          );
+          rej.nodes().animate(
+            { style: { "underlay-color": rejected, "underlay-opacity": 0.15, opacity: restNodeOp("rejected") } },
+            { duration: 650 },
+          );
+        }, 500),
+      );
+    }
 
     // Verifying: an amber scan sweeps the reachable nodes, then settles back to red.
     if (phase === "verifying") {
@@ -205,12 +278,12 @@ export function AttackGraph({ graph, phase }: { graph: Graph | null; phase: Phas
       cy.edges(".hot").style({ "line-color": flowColor, "target-arrow-color": flowColor });
       let off = 0;
       const tick = () => {
-        off -= 0.9;
+        off -= 1.8; // faster: the packet dashes stream briskly along live edges
         cy.edges(".hot").style("line-dash-offset", off);
         const t = performance.now() / 520;
         cy.nodes(".hot").style({
-          "underlay-padding": 8 + (Math.sin(t) + 1) * 4,
-          "underlay-opacity": 0.22 + (Math.sin(t) + 1) * 0.16,
+          "underlay-padding": 12 + (Math.sin(t) + 1) * 6,
+          "underlay-opacity": 0.3 + (Math.sin(t) + 1) * 0.18,
         });
         raf = requestAnimationFrame(tick);
       };
@@ -223,7 +296,7 @@ export function AttackGraph({ graph, phase }: { graph: Graph | null; phase: Phas
       cy.destroy();
       cyRef.current = null;
     };
-  }, [graph, phase]);
+  }, [graph, phase, rejectedNodeIds, rejectedEdgeIds]);
 
   const PHASE_LABEL: Record<Phase, string> = {
     idle: "standby",
@@ -249,6 +322,7 @@ export function AttackGraph({ graph, phase }: { graph: Graph | null; phase: Phas
       <ul className="legend" aria-label="Legend">
         <li className="legend__item"><span className="legend__swatch legend__swatch--reachable" /><span className="legend__label">reachable</span></li>
         <li className="legend__item"><span className="legend__swatch legend__swatch--patched" /><span className="legend__label">closed</span></li>
+        <li className="legend__item"><span className="legend__swatch legend__swatch--rejected" /><span className="legend__label">rejected</span></li>
         <li className="legend__item"><span className="legend__swatch legend__swatch--neutral" /><span className="legend__label">neutral</span></li>
       </ul>
     </section>

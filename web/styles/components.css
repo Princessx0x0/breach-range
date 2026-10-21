@@ -46,6 +46,41 @@
   margin: 0 auto;
   padding: var(--space-32) var(--space-32) var(--space-64);
 }
+
+/* Screen-edge threat vignette: a red inner glow that pulses while an attack path is
+   live, then clears. Fixed to the viewport, never intercepts clicks. */
+.room::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 40;
+  box-shadow: inset 0 0 180px 28px var(--reachable-glow);
+  opacity: 0;
+  transition: opacity 700ms ease;
+}
+.room[data-phase="threat"]::after {
+  opacity: 0.55;
+  animation: threatVignette 2.2s ease-in-out infinite;
+}
+@keyframes threatVignette {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.7; }
+}
+
+/* One brief shake of the graph the moment an attack path goes live. Plays once when
+   the room enters the threat phase (the attribute flips), not on every data update. */
+.room[data-phase="threat"] .graph__canvas {
+  animation: threatShake 0.42s ease both;
+}
+@keyframes threatShake {
+  0%, 100% { transform: translateX(0); }
+  15% { transform: translateX(-4px); }
+  30% { transform: translateX(4px); }
+  45% { transform: translateX(-3px); }
+  60% { transform: translateX(3px); }
+  75% { transform: translateX(-1.5px); }
+}
 .room__head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-16); }
 .room__title {
   font-size: 26px; line-height: 30px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase;
@@ -158,6 +193,7 @@
 .legend__swatch { width: 12px; height: 12px; border-radius: 999px; }
 .legend__swatch--reachable { background: var(--reachable); box-shadow: 0 0 10px var(--reachable-glow); }
 .legend__swatch--patched { background: var(--patched); box-shadow: 0 0 10px var(--patched-glow); }
+.legend__swatch--rejected { background: var(--rejected); opacity: 0.85; }
 .legend__swatch--neutral { background: var(--neutral); }
 .legend__label { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.04em; color: var(--ink-muted); }
 
@@ -188,7 +224,7 @@
 .feed__agent--recon { color: var(--map); }
 .feed__agent--attacker { color: var(--threat); }
 .feed__agent--referee { color: var(--verify); }
-.feed__agent--defender { color: var(--safe); }
+.feed__agent--defender { color: var(--defender); }
 .feed__round { font-size: 11px; color: var(--ink-muted); }
 .feed__text { font-size: 12px; line-height: 18px; color: var(--ink); overflow-wrap: anywhere; }
 
@@ -198,7 +234,7 @@
   font-family: var(--font-mono); font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap;
 }
 .pill--claimed, .pill--verified { background: var(--reachable-soft); color: var(--reachable); }
-.pill--rejected { background: var(--neutral-soft); color: var(--neutral); }
+.pill--rejected { background: var(--rejected-soft); color: var(--rejected); }
 .pill--applied { background: var(--patched-soft); color: var(--patched); }
 .pill--pending { background: rgba(255,176,32,0.12); color: var(--verify); }
 
@@ -224,4 +260,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .button, .room__brandmark, .banner--awaiting_approval, .feed__row { animation: none !important; transition: none !important; }
+  .room[data-phase="threat"]::after { animation: none !important; opacity: 0.4; }
+  .room[data-phase="threat"] .graph__canvas { animation: none !important; }
 }

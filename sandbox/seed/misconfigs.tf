@@ -96,9 +96,58 @@ resource "google_storage_bucket_object" "leaked_key" {
   content = local.leaked_key_file
 }
 
-output "misconfigs" {
-  value = {
-    "MC-01" = "public bucket ${google_storage_bucket.assets_public.name} holds a (disabled) CI key"
-    "MC-02" = "${google_service_account.ci_deployer.email} has tokenCreator on ${google_service_account.org_admin.email} (owner)"
+# ---------------------------------------------------------------------------
+# MC-05 (decoy, seed_level >= 5): the honest beat.
+#
+# A tokenCreator grant from ci-deployer to a high-value "decoy-admin" SA that LOOKS
+# like a second escalation path -- Recon's getIamPolicy sees the binding and the
+# Attacker claims it -- but the grant carries an IAM condition that is always false,
+# so it never actually applies. The Referee's Policy Troubleshooter evaluates the
+# condition against ground truth, finds the grant does not hold, and REJECTS the claim.
+# A naive scanner that only reads allow-bindings would flag this as exploitable; the
+# Referee proves on stage that it is not.
+#
+# SAFETY: fully real and fully inert. The binding and the editor role exist, but the
+# condition blocks impersonation and nothing can become decoy-admin.
+# ---------------------------------------------------------------------------
+resource "google_service_account" "decoy_admin" {
+  count        = var.seed_level >= 5 ? 1 : 0
+  project      = var.project_id
+  account_id   = "decoy-admin"
+  display_name = "Decoy admin"
+  description  = "[seed:mc-05] Decoy escalation target; the impersonation grant is condition-blocked"
+}
+
+# A real, high-value role so the Attacker treats decoy-admin as a prize worth reaching.
+resource "google_project_iam_member" "decoy_admin_editor" {
+  count   = var.seed_level >= 5 ? 1 : 0
+  project = var.project_id
+  role    = "roles/editor"
+  member  = "serviceAccount:${google_service_account.decoy_admin[0].email}"
+}
+
+# The decoy edge: looks like ci-deployer can mint tokens for decoy-admin, but the
+# condition is scoped to a window that has already closed, so the grant never applies.
+resource "google_service_account_iam_member" "ci_can_impersonate_decoy" {
+  count              = var.seed_level >= 5 ? 1 : 0
+  service_account_id = google_service_account.decoy_admin[0].name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:${google_service_account.ci_deployer.email}"
+  condition {
+    title       = "mc05-expired-window"
+    description = "MC-05 decoy: valid only before 2000-01-01, so it never grants in practice"
+    expression  = "request.time < timestamp(\"2000-01-01T00:00:00Z\")"
   }
+}
+
+output "misconfigs" {
+  value = merge(
+    {
+      "MC-01" = "public bucket ${google_storage_bucket.assets_public.name} holds a (disabled) CI key"
+      "MC-02" = "${google_service_account.ci_deployer.email} has tokenCreator on ${google_service_account.org_admin.email} (owner)"
+    },
+    var.seed_level >= 5 ? {
+      "MC-05" = "${google_service_account.ci_deployer.email} appears to reach ${google_service_account.decoy_admin[0].email} (editor), but an IAM condition blocks it"
+    } : {},
+  )
 }

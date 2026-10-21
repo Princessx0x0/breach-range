@@ -50,10 +50,16 @@ def list_sa_keys(sa_email: str) -> list[dict[str, Any]]:
 
 
 def get_sa_iam_policy(sa_email: str) -> dict[str, Any]:
-    """IAM policy ON a service account resource (who can impersonate / create tokens)."""
+    """IAM policy ON a service account resource (who can impersonate / create tokens).
+
+    Reads at policy version 3 so conditional bindings are returned rather than dropped.
+    The MC-05 decoy's tokenCreator grant carries an always-false condition: Recon must
+    see the binding (so the Attacker claims the path) even though the Referee's Policy
+    Troubleshooter will later find the condition blocks it."""
     svc = _svc("iam", "v1")
     return svc.projects().serviceAccounts().getIamPolicy(
-        resource=f"projects/{PROJECT_ID}/serviceAccounts/{sa_email}"
+        resource=f"projects/{PROJECT_ID}/serviceAccounts/{sa_email}",
+        options_requestedPolicyVersion=3,
     ).execute()
 
 
