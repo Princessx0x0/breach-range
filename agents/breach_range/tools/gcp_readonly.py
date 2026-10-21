@@ -11,6 +11,7 @@ import functools
 from typing import Any
 
 import googleapiclient.discovery
+from google.api_core.client_options import ClientOptions
 
 from breach_range.shared.config import PROJECT_ID
 
@@ -18,7 +19,14 @@ from breach_range.shared.config import PROJECT_ID
 @functools.lru_cache(maxsize=None)
 def _svc(name: str, version: str):
     # cache_discovery=False avoids noisy file-cache warnings under WSL.
-    return googleapiclient.discovery.build(name, version, cache_discovery=False)
+    # Pin the quota/billing project to the sandbox. Otherwise these calls bill
+    # ADC's quota_project_id (a developer's default project), where niche APIs
+    # like Policy Troubleshooter are disabled -> 403 SERVICE_DISABLED. The agent
+    # SAs set this correctly in production; this keeps local runs honest too.
+    return googleapiclient.discovery.build(
+        name, version, cache_discovery=False,
+        client_options=ClientOptions(quota_project_id=PROJECT_ID),
+    )
 
 
 # --- IAM: service accounts, their keys, and per-SA policies --------------
