@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AttackGraph, type Phase } from "@/components/AttackGraph";
 import { EventFeed } from "@/components/EventFeed";
@@ -14,6 +14,7 @@ import {
   watchRounds,
   type EventDoc,
   type Graph,
+  type Path,
   type Round,
 } from "@/lib/firestore";
 
@@ -73,7 +74,7 @@ export default function ControlRoom() {
   useEffect(() => { void refreshState(); }, [refreshState, events.length]);
 
   const post = useCallback(
-    async (action: "step" | "round" | "reset") => {
+    async (action: "step" | "round" | "reset" | "teardown") => {
       setBusy(true);
       try {
         const res = await fetch("/api/step", {
@@ -115,6 +116,52 @@ export default function ControlRoom() {
     }
   }, [info]);
 
+  const teardown = useCallback(() => {
+    if (
+      !window.confirm(
+        "Tear down the sandbox? This destroys every resource in the project so nothing can bill. " +
+          "Reset rebuilds it from scratch (takes about a minute).",
+      )
+    )
+      return;
+    void post("teardown");
+  }, [post]);
+
+  // The decoy beat. A path the Referee rejected (referee.rejected) was claimed by the
+  // Attacker but failed against ground truth. We light its claimed-but-not-verified
+  // nodes and edges as "rejected" so the graph shows it being thrown out, not quietly
+  // reverting to neutral. Derived from the event log, so no schema change is needed.
+  const rejected = useMemo(() => {
+    const nodeIds = new Set<string>();
+    const edgeIds = new Set<string>();
+    if (!graph) return { nodeIds, edgeIds };
+    const round = info?.round ?? graph.round;
+    const edgeById = new Map(graph.edges.map((e) => [e.id, e]));
+    const reachable = new Set(graph.nodes.filter((n) => n.reachable).map((n) => n.id));
+
+    // Edges/nodes on a verified path this round are the live attack: never mark them rejected.
+    const verifiedEdges = new Set<string>();
+    for (const ev of events) {
+      if (ev.round !== round || ev.action !== "referee.verified") continue;
+      ((ev.payload as { path?: Path }).path?.edges ?? []).forEach((id) => verifiedEdges.add(id));
+    }
+    for (const ev of events) {
+      if (ev.round !== round || ev.action !== "referee.rejected") continue;
+      const p = (ev.payload as { path?: Path }).path;
+      if (!p) continue;
+      const ids = [p.startNode];
+      for (const eid of p.edges) {
+        const e = edgeById.get(eid);
+        if (e) ids.push(e.to);
+        if (!verifiedEdges.has(eid)) edgeIds.add(eid);
+      }
+      ids.forEach((id) => {
+        if (!reachable.has(id)) nodeIds.add(id);
+      });
+    }
+    return { nodeIds, edgeIds };
+  }, [events, graph, info]);
+
   const phase = derivePhase(info, graph);
 
   return (
@@ -143,10 +190,16 @@ export default function ControlRoom() {
         onRound={() => post("round")}
         onReset={() => post("reset")}
         onApprove={approve}
+        onTeardown={teardown}
       />
 
       <div className="room__grid">
-        <AttackGraph graph={graph} phase={phase} />
+        <AttackGraph
+          graph={graph}
+          phase={phase}
+          rejectedNodeIds={rejected.nodeIds}
+          rejectedEdgeIds={rejected.edgeIds}
+        />
         <div className="room__rail">
           <Scoreboard graph={graph} rounds={rounds} />
           <Explainer />

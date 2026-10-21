@@ -14,6 +14,7 @@ Endpoints (all return the current state as JSON):
   POST /step    run the next agent
   POST /round   run the current round up to the approval gate
   POST /reset   clear the log, restore the lit sandbox, start again
+  POST /teardown  destroy every sandbox resource (the cost kill switch), then clear the board
 """
 
 from __future__ import annotations
@@ -74,12 +75,18 @@ def step() -> dict:
             if paths else "The Attacker found no way in. Let the Referee confirm."))
     elif stage == "referee":
         score = run_referee(rnd)
+        rejected = len(firestore_io.list_events(rnd, Action.REFEREE_REJECTED))
+        rej_note = (
+            f" It rejected {rejected} false path(s) the Attacker claimed; ground truth blocks "
+            "them, so they do not score."
+            if rejected else ""
+        )
         if score == 0:
             _cursor.update(stage="game_over",
-                           message="The Referee could reach nothing. The project is secure — you win.")
+                           message="The Referee could reach nothing. The project is secure. You win." + rej_note)
         else:
             _cursor.update(stage="propose",
-                           message=f"The Referee verified the attack: {score} way(s) in still reachable.")
+                           message=f"The Referee verified the attack: {score} way(s) in still reachable." + rej_note)
     elif stage == "propose":
         patch = propose(rnd)
         if patch is None:
@@ -128,6 +135,27 @@ def reset() -> dict:
     return _payload()
 
 
+def teardown() -> dict:
+    """The cost kill switch. Destroys every sandbox resource so nothing can bill, then
+    clears the board. Keeps the project and the tfstate, so `reset` (terraform apply)
+    rebuilds the range from scratch. For the final project delete after the event, use
+    sandbox/teardown.sh -- that is irreversible and not wired to a button on purpose."""
+    subprocess.run(
+        ["terraform", f"-chdir={terraform.SANDBOX_DIR}", "destroy", "-auto-approve",
+         "-input=false", "-no-color"],
+        check=True,
+    )
+    c = firestore_io.client()
+    for coll in ("events", "rounds"):
+        for d in c.collection(coll).stream():
+            d.reference.delete()
+    c.collection("graph").document("current").delete()
+    _cursor.update(round=1, stage="recon", target=None, patch=None,
+                   message="Sandbox torn down: every resource destroyed, nothing can bill. "
+                           "Click Reset to rebuild the range.")
+    return _payload()
+
+
 class Handler(BaseHTTPRequestHandler):
     def _send(self, body: dict, code: int = 200):
         payload = json.dumps(body).encode()
@@ -155,6 +183,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(run_round())
             if route == "/reset":
                 return self._send(reset())
+            if route == "/teardown":
+                return self._send(teardown())
         except Exception as e:  # surface agent errors to the UI instead of a dead button
             return self._send({"status": "error", "message": f"{type(e).__name__}: {e}",
                                "round": _cursor["round"], "next": _cursor["stage"], "nextLabel": "",

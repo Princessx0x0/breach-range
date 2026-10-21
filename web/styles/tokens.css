@@ -27,6 +27,16 @@
   --patched-glow: rgba(34, 227, 154, 0.5);
   --neutral: #495573;
   --neutral-soft: #101728;
+  /* rejected: a claimed path the Referee threw out. A muted rose -- clearly not the
+     live red attack, clearly not inert neutral; the honest-beat colour. */
+  --rejected: #c77d8c;
+  --rejected-soft: #241017;
+  /* defender: the Defender's own identity. Burgundy/wine, deliberately NOT the
+     attacker's bright red -- the mender, not the threat. (Closed paths stay --patched
+     green: that is the outcome, this is the agent.) */
+  --defender: #9b3b54;
+  --defender-soft: #23101a;
+  --defender-glow: rgba(155, 59, 84, 0.5);
 
   /* phase accents */
   --map: #3ae1ff;

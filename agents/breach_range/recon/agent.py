@@ -9,6 +9,7 @@ guess.
 from __future__ import annotations
 
 import json
+import re
 from typing import Optional
 
 from breach_range.shared import schema
@@ -42,9 +43,25 @@ def _looks_like_key_file(object_name: str) -> bool:
     return n.endswith(".json") and ("key" in n or "credential" in n or "sa" in n)
 
 
+_SEED_TAG = re.compile(r"\[seed:(mc-\d+)\]", re.IGNORECASE)
+
+
+def _seed_misconfig(description: Optional[str]) -> Optional[str]:
+    """Read the misconfig id a seed resource tags itself with, e.g. a service account
+    whose description carries '[seed:mc-05]'. Service accounts cannot hold labels, so the
+    description is where the seed records which misconfig the account belongs to. Returns
+    the uppercased id (MC-05) or None. Never guesses -- an untagged SA is just infra."""
+    if not description:
+        return None
+    m = _SEED_TAG.search(description)
+    return m.group(1).upper() if m else None
+
+
 def build_graph(round: int) -> Graph:
     """Read GCP and assemble the attack graph. reachable defaults False (Attacker sets it)."""
-    sa_emails = [a["email"] for a in gcp_readonly.list_service_accounts()]
+    accounts = gcp_readonly.list_service_accounts()
+    sa_emails = [a["email"] for a in accounts]
+    sa_misconfig = {a["email"]: _seed_misconfig(a.get("description")) for a in accounts}
 
     nodes: dict[str, Node] = {}
     edges: list[Edge] = []
@@ -64,7 +81,7 @@ def build_graph(round: int) -> Graph:
                 id=nid,
                 kind=NodeKind.SERVICE_ACCOUNT,
                 name=email,
-                fromMisconfig=None,
+                fromMisconfig=sa_misconfig.get(email),
                 labels={"roles": roles},
             )
         return nid
@@ -121,12 +138,15 @@ def build_graph(round: int) -> Graph:
                 if src_email not in sa_emails:
                     continue
                 src_sid = ensure_sa_node(src_email)
+                # Tag the edge with the misconfig the TARGET account belongs to: the
+                # headline chain's org-admin is MC-02, the decoy's decoy-admin is MC-05.
+                # Fall back to MC-02 for an untagged tokenCreator target (the headline).
                 edges.append(Edge(
                     id=next_edge_id(),
                     from_=src_sid,
                     to=target_sid,
                     relation=Relation.TOKEN_CREATOR,
-                    viaMisconfig="MC-02",
+                    viaMisconfig=sa_misconfig.get(email) or "MC-02",
                 ))
 
     # Drop isolated agent-infra SA nodes that no edge touches and that hold no high-value role.
