@@ -7,7 +7,12 @@ import { NextResponse } from "next/server";
  * is next) so the status banner can update immediately.
  */
 const RUNNER = process.env.AGENT_URL;
-const ACTIONS: Record<string, string> = { step: "/step", round: "/round", reset: "/reset" };
+const ACTIONS: Record<string, string> = {
+  step: "/step",
+  round: "/round",
+  reset: "/reset",
+  teardown: "/teardown",
+};
 
 export async function POST(req: Request) {
   if (!RUNNER) {

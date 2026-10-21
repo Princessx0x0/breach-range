@@ -33,6 +33,7 @@ export function StatusBanner({
   onRound,
   onReset,
   onApprove,
+  onTeardown,
 }: {
   info: RunnerState | null;
   phase: string;
@@ -41,6 +42,7 @@ export function StatusBanner({
   onRound: () => void;
   onReset: () => void;
   onApprove: () => void;
+  onTeardown: () => void;
 }) {
   if (!info) {
     return (
@@ -93,6 +95,15 @@ export function StatusBanner({
           <span className="banner__hint">A human must approve before anything changes in the project.</span>
         )}
         {info.status === "error" && <span className="banner__hint banner__hint--error">{info.message}</span>}
+
+        <button
+          className="banner__teardown"
+          onClick={onTeardown}
+          disabled={busy}
+          title="Destroy every sandbox resource so nothing can bill. Reset rebuilds it."
+        >
+          Tear down
+        </button>
       </div>
     </section>
   );

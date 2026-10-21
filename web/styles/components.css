@@ -126,6 +126,15 @@
 .banner__reset:hover { color: var(--ink); }
 .banner__hint { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.02em; color: var(--ink-muted); }
 .banner__hint--error { color: var(--danger); }
+/* The cost kill switch. Pushed to the far right and kept quiet so it is never confused
+   with Reset; it turns danger-coloured only on hover, when you mean it. */
+.banner__teardown {
+  margin-left: auto; border: 0; background: none; cursor: pointer;
+  font-family: var(--font-mono); font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--ink-muted);
+}
+.banner__teardown:hover:not(:disabled) { color: var(--danger); }
+.banner__teardown:disabled { opacity: 0.5; cursor: default; }
 
 /* ---------- Attack graph ---------- */
 .graph { gap: var(--space-16); }

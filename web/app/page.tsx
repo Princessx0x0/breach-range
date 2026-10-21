@@ -73,7 +73,7 @@ export default function ControlRoom() {
   useEffect(() => { void refreshState(); }, [refreshState, events.length]);
 
   const post = useCallback(
-    async (action: "step" | "round" | "reset") => {
+    async (action: "step" | "round" | "reset" | "teardown") => {
       setBusy(true);
       try {
         const res = await fetch("/api/step", {
@@ -115,6 +115,17 @@ export default function ControlRoom() {
     }
   }, [info]);
 
+  const teardown = useCallback(() => {
+    if (
+      !window.confirm(
+        "Tear down the sandbox? This destroys every resource in the project so nothing can bill. " +
+          "Reset rebuilds it from scratch (takes about a minute).",
+      )
+    )
+      return;
+    void post("teardown");
+  }, [post]);
+
   const phase = derivePhase(info, graph);
 
   return (
@@ -143,6 +154,7 @@ export default function ControlRoom() {
         onRound={() => post("round")}
         onReset={() => post("reset")}
         onApprove={approve}
+        onTeardown={teardown}
       />
 
       <div className="room__grid">
